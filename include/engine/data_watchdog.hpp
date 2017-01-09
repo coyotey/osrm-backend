@@ -24,8 +24,10 @@ namespace engine
 // This class monitors the shared memory region that contains the pointers to
 // the data and layout regions that should be used. This region is updated
 // once a new dataset arrives.
-class DataWatchdog
+template <typename AlgorithmT> class DataWatchdog final
 {
+    using FacadeT = datafacade::ContiguousInternalMemoryDataFacade<AlgorithmT>;
+
   public:
     DataWatchdog() : barrier(boost::interprocess::open_only), active(true), timestamp(0)
     {
@@ -34,7 +36,7 @@ class DataWatchdog
             boost::interprocess::scoped_lock<storage::SharedBarrier::mutex_type>
                 current_region_lock(barrier.GetMutex());
 
-            facade = std::make_shared<datafacade::ContiguousInternalMemoryDataFacade>(
+            facade = std::make_shared<const FacadeT>(
                 std::make_unique<datafacade::SharedMemoryAllocator>(barrier.GetRegion()));
             timestamp = barrier.GetTimestamp();
         }
@@ -42,14 +44,14 @@ class DataWatchdog
         watcher = std::thread(&DataWatchdog::Run, this);
     }
 
-    ~DataWatchdog()
+    virtual ~DataWatchdog()
     {
         active = false;
         barrier.NotifyAll();
         watcher.join();
     }
 
-    auto GetDataFacade() const { return facade; }
+    std::shared_ptr<const FacadeT> Get() const { return facade; }
 
   private:
     void Run()
@@ -66,7 +68,7 @@ class DataWatchdog
 
             if (timestamp != barrier.GetTimestamp())
             {
-                facade = std::make_shared<datafacade::ContiguousInternalMemoryDataFacade>(
+                facade = std::make_shared<const FacadeT>(
                     std::make_unique<datafacade::SharedMemoryAllocator>(barrier.GetRegion()));
                 timestamp = barrier.GetTimestamp();
                 util::Log() << "updated facade to region "
@@ -82,7 +84,7 @@ class DataWatchdog
     std::thread watcher;
     bool active;
     unsigned timestamp;
-    std::shared_ptr<datafacade::ContiguousInternalMemoryDataFacade> facade;
+    std::shared_ptr<const FacadeT> facade;
 };
 }
 }

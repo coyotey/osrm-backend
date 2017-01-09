@@ -23,7 +23,7 @@ namespace trip
 // given a route and a new location, find the best place of insertion and
 // check the distance of roundtrip when the new location is additionally visited
 using NodeIDIter = std::vector<NodeID>::iterator;
-std::pair<EdgeWeight, NodeIDIter>
+inline std::pair<EdgeWeight, NodeIDIter>
 GetShortestRoundTrip(const NodeID new_loc,
                      const util::DistTableWrapper<EdgeWeight> &dist_table,
                      const std::size_t number_of_locations,
