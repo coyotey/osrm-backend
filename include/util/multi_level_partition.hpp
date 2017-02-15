@@ -1,6 +1,7 @@
 #ifndef OSRM_UTIL_MULTI_LEVEL_PARTITION_HPP
 #define OSRM_UTIL_MULTI_LEVEL_PARTITION_HPP
 
+#include "storage/io.hpp"
 #include "util/for_each_pair.hpp"
 #include "util/typedefs.hpp"
 
@@ -87,6 +88,8 @@ class PackedMultiLevelPartition final : public MultiLevelPartition
         initializePartitionIDs(partitions);
     }
 
+    PackedMultiLevelPartition(const boost::filesystem::path &file_name) { Read(file_name); }
+
     // returns the index of the cell the vertex is contained at level l
     CellID GetCell(LevelID l, NodeID node) const final override
     {
@@ -134,6 +137,31 @@ class PackedMultiLevelPartition final : public MultiLevelPartition
         auto lidx = LevelIDToIndex(level);
         auto offset = level_to_children_offset[lidx];
         return cell_to_children[offset + cell + 1];
+    }
+
+    void Read(const boost::filesystem::path &path)
+    {
+        const auto fingerprint = storage::io::FileReader::VerifyFingerprint;
+        storage::io::FileReader reader{path, fingerprint};
+
+        reader.DeserializeVector(level_offsets);
+        reader.DeserializeVector(partition);
+        reader.DeserializeVector(level_to_children_offset);
+        reader.DeserializeVector(cell_to_children);
+
+        level_masks = makeLevelMasks();
+        bit_to_level = makeBitToLevel();
+    }
+
+    void Write(const boost::filesystem::path &path) const
+    {
+        const auto fingerprint = storage::io::FileWriter::GenerateFingerprint;
+        storage::io::FileWriter writer{path, fingerprint};
+
+        writer.SerializeVector(level_offsets);
+        writer.SerializeVector(partition);
+        writer.SerializeVector(level_to_children_offset);
+        writer.SerializeVector(cell_to_children);
     }
 
   private:

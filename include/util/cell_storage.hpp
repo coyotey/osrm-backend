@@ -1,10 +1,12 @@
 #ifndef OSRM_UTIL_CELL_STORAGE_HPP
 #define OSRM_UTIL_CELL_STORAGE_HPP
 
+#include "storage/io.hpp"
 #include "util/assert.hpp"
 #include "util/for_each_range.hpp"
 #include "util/multi_level_partition.hpp"
 #include "util/typedefs.hpp"
+#include "util/log.hpp"
 
 #include <boost/range/iterator_range.hpp>
 #include <tbb/parallel_sort.h>
@@ -200,6 +202,13 @@ class CellStorage
                     is_source_node |= partition.GetCell(level, other) == cell_id && data.forward;
                     is_destination_node |=
                         partition.GetCell(level, other) == cell_id && data.backward;
+
+                    // TODO: remove
+                    // if (node==634)
+                    // {
+                    //     std::cout << node << " -> " << other << " " << is_boundary_node << " " <<
+                    //     is_source_node << " " << is_destination_node << "\n";
+                    // }
                 }
 
                 if (is_boundary_node)
@@ -208,12 +217,14 @@ class CellStorage
                         level_source_boundary.emplace_back(cell_id, node);
                     if (is_destination_node)
                         level_destination_boundary.emplace_back(cell_id, node);
-                    // a partition that contains boundary nodes that have no arcs going into
-                    // the cells or coming out of it is invalid. These nodes should be reassigned
-                    // to a different cell.
-                    BOOST_ASSERT_MSG(
-                        is_source_node || is_destination_node,
-                        "Node needs to either have incoming or outgoing edges in cell");
+
+                    if (!is_source_node && !is_destination_node)
+                    {
+                        util::Log(logWARNING)
+                            << "Cell " << cell_id << " level " << (int)level
+                            << " contains a boundary node " << node << " that has no arcs to"
+                            << " the cell nodes. The node should be reassigned to another cell";
+                    }
                 }
             }
 
@@ -286,6 +297,8 @@ class CellStorage
     {
     }
 
+    CellStorage(const boost::filesystem::path &path) { Read(path); }
+
     ConstCell GetCell(LevelID level, CellID id) const
     {
         const auto level_index = LevelIDToIndex(level);
@@ -306,6 +319,30 @@ class CellStorage
         BOOST_ASSERT(cell_index < cells.size());
         return Cell{
             cells[cell_index], weights.data(), source_boundary.data(), destination_boundary.data()};
+    }
+
+    void Read(const boost::filesystem::path &path)
+    {
+        const auto fingerprint = storage::io::FileReader::VerifyFingerprint;
+        storage::io::FileReader reader{path, fingerprint};
+
+        reader.DeserializeVector(weights);
+        reader.DeserializeVector(source_boundary);
+        reader.DeserializeVector(destination_boundary);
+        reader.DeserializeVector(cells);
+        reader.DeserializeVector(level_to_cell_offset);
+    }
+
+    void Write(const boost::filesystem::path &path) const
+    {
+        const auto fingerprint = storage::io::FileWriter::GenerateFingerprint;
+        storage::io::FileWriter writer{path, fingerprint};
+
+        writer.SerializeVector(weights);
+        writer.SerializeVector(source_boundary);
+        writer.SerializeVector(destination_boundary);
+        writer.SerializeVector(cells);
+        writer.SerializeVector(level_to_cell_offset);
     }
 
   private:

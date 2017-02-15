@@ -1,14 +1,11 @@
-#include "partition/partition_config.hpp"
-#include "partition/partitioner.hpp"
+#include "customizer/customizer.hpp"
 
 #include "util/log.hpp"
 #include "util/meminfo.hpp"
-#include "util/timing_util.hpp"
 #include "util/version.hpp"
 
 #include <tbb/task_scheduler_init.h>
 
-#include <boost/assert.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
@@ -23,7 +20,8 @@ enum class return_code : unsigned
     exit
 };
 
-return_code parseArguments(int argc, char *argv[], partition::PartitionConfig &partition_config)
+return_code
+parseArguments(int argc, char *argv[], customize::CustomizationConfig &customization_config)
 {
     // declare a group of options that will be allowed only on command line
     boost::program_options::options_description generic_options("Options");
@@ -34,44 +32,16 @@ return_code parseArguments(int argc, char *argv[], partition::PartitionConfig &p
     config_options.add_options()
         //
         ("threads,t",
-         boost::program_options::value<unsigned int>(&partition_config.requested_num_threads)
+         boost::program_options::value<unsigned int>(&customization_config.requested_num_threads)
              ->default_value(tbb::task_scheduler_init::default_num_threads()),
-         "Number of threads to use")
-        //
-        ("max-cell-size",
-         boost::program_options::value<std::size_t>(&partition_config.maximum_cell_size)
-             ->default_value(4096),
-         "Bisection termination citerion based on cell size")
-        //
-        ("balance",
-         boost::program_options::value<double>(&partition_config.balance)->default_value(1.2),
-         "Balance for left and right side in single bisection")
-        //
-        ("boundary",
-         boost::program_options::value<double>(&partition_config.boundary_factor)
-             ->default_value(0.25),
-         "Percentage of embedded nodes to contract as sources and sinks")
-        //
-        ("optimizing-cuts",
-         boost::program_options::value<std::size_t>(&partition_config.num_optimizing_cuts)
-             ->default_value(10),
-         "Number of cuts to use for optimizing a single bisection")
-        //
-        ("small-component-size",
-         boost::program_options::value<std::size_t>(&partition_config.small_component_size)
-             ->default_value(1000),
-         "Number of cuts to use for optimizing a single bisection")(
-            "prepare-customization",
-            boost::program_options::value<bool>(&partition_config.output_customization_data)
-                ->default_value(partition_config.output_customization_data),
-            "Output customization data");
+         "Number of threads to use");
 
     // hidden options, will be allowed on command line, but will not be
     // shown to the user
     boost::program_options::options_description hidden_options("Hidden options");
     hidden_options.add_options()(
         "input,i",
-        boost::program_options::value<boost::filesystem::path>(&partition_config.base_path),
+        boost::program_options::value<boost::filesystem::path>(&customization_config.base_path),
         "Input file in .osrm format");
 
     // positional option
@@ -129,9 +99,9 @@ return_code parseArguments(int argc, char *argv[], partition::PartitionConfig &p
 int main(int argc, char *argv[]) try
 {
     util::LogPolicy::GetInstance().Unmute();
-    partition::PartitionConfig partition_config;
+    customize::CustomizationConfig customization_config;
 
-    const auto result = parseArguments(argc, argv, partition_config);
+    const auto result = parseArguments(argc, argv, customization_config);
 
     if (return_code::fail == result)
     {
@@ -144,41 +114,24 @@ int main(int argc, char *argv[]) try
     }
 
     // set the default in/output names
-    partition_config.UseDefaults();
+    customization_config.UseDefaults();
 
-    if (1 > partition_config.requested_num_threads)
+    if (1 > customization_config.requested_num_threads)
     {
         util::Log(logERROR) << "Number of threads must be 1 or larger";
         return EXIT_FAILURE;
     }
 
-    auto check_file = [](const boost::filesystem::path &path) {
-        if (!boost::filesystem::is_regular_file(path))
-        {
-            util::Log(logERROR) << "Input file " << path << " not found!";
-            return false;
-        }
-        else
-        {
-            return true;
-        }
-    };
-
-    if (!check_file(partition_config.edge_based_graph_path) ||
-        !check_file(partition_config.nbg_ebg_mapping_path) ||
-        !check_file(partition_config.compressed_node_based_graph_path))
+    if (!boost::filesystem::is_regular_file(customization_config.base_path))
     {
+        util::Log(logERROR) << "Input file " << customization_config.base_path.string()
+                            << " not found!";
         return EXIT_FAILURE;
     }
 
-    tbb::task_scheduler_init init(partition_config.requested_num_threads);
-    BOOST_ASSERT(init.is_active());
-    util::Log() << "Computing recursive bisection";
+    tbb::task_scheduler_init init(customization_config.requested_num_threads);
 
-    TIMER_START(bisect);
-    auto exitcode = partition::Partitioner().Run(partition_config);
-    TIMER_STOP(bisect);
-    util::Log() << "Bisection took " << TIMER_SEC(bisect) << " seconds.";
+    auto exitcode = customize::Customizer().Run(customization_config);
 
     util::DumpMemoryStats();
 

@@ -311,8 +311,10 @@ void EdgeBasedGraphFactory::GenerateEdgeExpandedNodes(const bool generate_nbg_eb
                     mapping = InsertEdgeBasedNode(node_u, node_v);
                 }
 
-                if (generate_nbg_ebg_mapping)
+                if (mapping && generate_nbg_ebg_mapping)
+                {
                     writer->WriteMapping(mapping->u, mapping->v, mapping->head, mapping->tail);
+                }
             }
         }
     }

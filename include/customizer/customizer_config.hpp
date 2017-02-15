@@ -1,5 +1,5 @@
-#ifndef PARTITIONER_CONFIG_HPP
-#define PARTITIONER_CONFIG_HPP
+#ifndef OSRM_CUSTOMIZE_CUSTOMIZER_CONFIG_HPP
+#define OSRM_CUSTOMIZE_CUSTOMIZER_CONFIG_HPP
 
 #include <boost/filesystem/path.hpp>
 
@@ -8,15 +8,12 @@
 
 namespace osrm
 {
-namespace partition
+namespace customize
 {
 
-struct PartitionConfig
+struct CustomizationConfig
 {
-    PartitionConfig()
-        : requested_num_threads(0), output_customization_data(true) // TODO change to false
-    {
-    }
+    CustomizationConfig() : requested_num_threads(0) {}
 
     void UseDefaults()
     {
@@ -34,32 +31,27 @@ struct PartitionConfig
         }
 
         edge_based_graph_path = basepath + ".osrm.ebg";
-        compressed_node_based_graph_path = basepath + ".osrm.cnbg";
-        nbg_ebg_mapping_path = basepath + ".osrm.nbg_to_ebg";
-        partition_path = basepath + ".osrm.partition";
         mld_partition_path = basepath + ".osrm.mld_partition";
         mld_storage_path = basepath + ".osrm.mld_storage";
+
+        // compressed_node_based_graph_path = basepath + ".osrm.cnbg";
+        // nbg_ebg_mapping_path = basepath + ".osrm.nbg_to_ebg";
+        // partition_path = basepath + ".osrm.partition";
     }
 
     // might be changed to the node based graph at some point
     boost::filesystem::path base_path;
     boost::filesystem::path edge_based_graph_path;
-    boost::filesystem::path compressed_node_based_graph_path;
-    boost::filesystem::path nbg_ebg_mapping_path;
-    boost::filesystem::path partition_path;
     boost::filesystem::path mld_partition_path;
     boost::filesystem::path mld_storage_path;
+    // boost::filesystem::path edge_based_graph_path;
+    // boost::filesystem::path compressed_node_based_graph_path;
+    // boost::filesystem::path nbg_ebg_mapping_path;
+    // boost::filesystem::path partition_path;
 
     unsigned requested_num_threads;
-
-    std::size_t maximum_cell_size;
-    double balance;
-    double boundary_factor;
-    std::size_t num_optimizing_cuts;
-    std::size_t small_component_size;
-    bool output_customization_data;
 };
 }
 }
 
-#endif // PARTITIONER_CONFIG_HPP
+#endif // OSRM_CUSTOMIZE_CUSTOMIZER_CONFIG_HPP
