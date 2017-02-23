@@ -164,6 +164,13 @@ int Partitioner::Run(const PartitionConfig &config)
     // Partition ids, keyed by node based graph nodes
     const auto &node_based_partition_ids = recursive_bisection.BisectionIDs();
 
+    { // TODO: remove later
+        const auto fingerprint = storage::io::FileWriter::GenerateFingerprint;
+        storage::io::FileWriter writer{config.base_path.string() + ".nbp_ids", fingerprint};
+        writer.WriteOne<std::uint32_t>(recursive_bisection.SCCDepth());
+        writer.SerializeVector(node_based_partition_ids);
+    }
+
     // Partition ids, keyed by edge based graph nodes
     std::vector<NodeID> edge_based_partition_ids(edge_based_graph->GetNumberOfNodes());
 
@@ -191,14 +198,12 @@ int Partitioner::Run(const PartitionConfig &config)
                     node_based_partition_ids[other_node_based_nodes.u] !=
                         node_based_partition_ids[u])
                 { // use id of other u if [other_u, other_v] -> [u,v] is in other partition as u
-                    std::cout << "=== case 1 for node " << node << "\n";
                     edge_based_partition_ids[node] =
                         node_based_partition_ids[other_node_based_nodes.u];
                 }
                 // if (data.forward && node_based_partition_ids[v] !=
                 // node_based_partition_ids[other_node_based_nodes.v])
                 // { // use id of other v if [u,v] -> [other_u, other_v] is in other partition as v
-                //     std::cout << "=== case 2 for node " << node << "\n";
                 //     edge_based_partition_ids[node] =
                 //     node_based_partition_ids[other_node_based_nodes.v];
                 // }
@@ -304,14 +309,14 @@ int Partitioner::Run(const PartitionConfig &config)
                        [](const std::unordered_set<osrm::util::CellID> &partition_set) {
                            return partition_set.size();
                        });
-        std::cout << "# of cell on levels\n";
-        for (std::size_t level = 0; level < partition_sets.size(); ++level)
-        {
-            std::cout << level_to_num_cells[level] << ": ";
-            for (auto x : partition_sets[level])
-                std::cout << " " << x;
-            std::cout << "\n";
-        }
+        // std::cout << "# of cell on levels\n";
+        // for (std::size_t level = 0; level < partition_sets.size(); ++level)
+        // {
+        //     std::cout << level_to_num_cells[level] << ": ";
+        //     for (auto x : partition_sets[level])
+        //         std::cout << " " << x;
+        //     std::cout << "\n";
+        // }
 
         TIMER_START(packed_mlp);
         osrm::util::PackedMultiLevelPartition<false> mlp{partitions, level_to_num_cells};

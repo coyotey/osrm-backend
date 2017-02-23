@@ -101,6 +101,7 @@ class CellCustomizer
             auto subcell_destination = subcell.GetDestinationNodes().begin();
             for (auto subcell_weight : subcell.GetOutWeight(node))
             {
+                BOOST_ASSERT(subcell_destination != subcell.GetDestinationNodes().end());
                 if (subcell_weight != INVALID_EDGE_WEIGHT)
                 {
                     const NodeID to = *subcell_destination;
@@ -127,7 +128,7 @@ class CellCustomizer
             if (data.forward && partition.GetCell(level, to) == id &&
                 (first_level ||
                  partition.GetCell(level - 1, node) != partition.GetCell(level - 1, to)))
-            {
+            { // adjacent node in the same cell on the level but in different cell on level - 1
                 const EdgeWeight to_weight = data.weight + weight;
                 if (!heap.WasInserted(to))
                 {

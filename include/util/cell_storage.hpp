@@ -4,10 +4,10 @@
 #include "storage/io.hpp"
 #include "util/assert.hpp"
 #include "util/for_each_range.hpp"
+#include "util/log.hpp"
 #include "util/multi_level_partition.hpp"
 #include "util/shared_memory_vector_wrapper.hpp"
 #include "util/typedefs.hpp"
-#include "util/log.hpp"
 
 #include <boost/range/iterator_range.hpp>
 #include <tbb/parallel_sort.h>
