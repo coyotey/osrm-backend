@@ -20,8 +20,10 @@ int Customizer::Run(const CustomizationConfig &config)
                 << edge_based_graph->GetNumberOfEdges() << " edges, "
                 << edge_based_graph->GetNumberOfNodes() << " nodes";
 
-    osrm::util::PackedMultiLevelPartition mlp(config.mld_partition_path);
-    osrm::util::CellStorage storage(mlp, *edge_based_graph);
+    osrm::util::PackedMultiLevelPartition<false> mlp;
+    mlp.Read(config.mld_partition_path);
+    // here start with fresh storage, TODO check caching
+    osrm::util::CellStorage<false> storage(mlp, *edge_based_graph);
     TIMER_STOP(loading_data);
     util::Log() << "Loading partition data took " << TIMER_SEC(loading_data) << " seconds";
 

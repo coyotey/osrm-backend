@@ -3,6 +3,7 @@
 
 #include "storage/io.hpp"
 #include "util/for_each_pair.hpp"
+#include "util/shared_memory_vector_wrapper.hpp"
 #include "util/typedefs.hpp"
 
 #include <algorithm>
@@ -71,12 +72,14 @@ class MultiLevelPartition
     virtual std::size_t GetNumberOfCells(LevelID level) const = 0;
 };
 
-class PackedMultiLevelPartition final : public MultiLevelPartition
+template <bool UseShareMemory> class PackedMultiLevelPartition final : public MultiLevelPartition
 {
     using PartitionID = std::uint64_t;
     static const constexpr std::size_t NUM_PARTITION_BITS = sizeof(PartitionID) * 8;
 
   public:
+    PackedMultiLevelPartition() {}
+
     // cell_sizes is index by level (starting at 0, the base graph).
     // However level 0 always needs to have cell size 1, since it is the
     // basegraph.
@@ -87,8 +90,6 @@ class PackedMultiLevelPartition final : public MultiLevelPartition
     {
         initializePartitionIDs(partitions);
     }
-
-    PackedMultiLevelPartition(const boost::filesystem::path &file_name) { Read(file_name); }
 
     // returns the index of the cell the vertex is contained at level l
     CellID GetCell(LevelID l, NodeID node) const final override
@@ -139,7 +140,62 @@ class PackedMultiLevelPartition final : public MultiLevelPartition
         return cell_to_children[offset + cell + 1];
     }
 
-    void Read(const boost::filesystem::path &path)
+    std::size_t GetRequiredMemorySize(const boost::filesystem::path &path) const
+    {
+        const auto fingerprint = storage::io::FileReader::VerifyFingerprint;
+        storage::io::FileReader reader{path, fingerprint};
+
+        std::size_t memory_size = 0;
+        memory_size += reader.GetVectorMemorySize<decltype(level_offsets[0])>();
+        memory_size += reader.GetVectorMemorySize<decltype(partition[0])>();
+        memory_size += reader.GetVectorMemorySize<decltype(level_to_children_offset[0])>();
+        memory_size += reader.GetVectorMemorySize<decltype(cell_to_children[0])>();
+        return memory_size;
+    }
+
+    template <bool Q = UseShareMemory>
+    typename std::enable_if<Q>::type
+    Read(const boost::filesystem::path &path, void *begin, const void *end) const
+    {
+        const auto fingerprint = storage::io::FileReader::VerifyFingerprint;
+        storage::io::FileReader reader{path, fingerprint};
+
+        begin = reader.DeserializeVector<typename decltype(level_offsets)::value_type>(begin, end);
+        begin = reader.DeserializeVector<typename decltype(partition)::value_type>(begin, end);
+        begin = reader.DeserializeVector<typename decltype(level_to_children_offset)::value_type>(
+            begin, end);
+        begin =
+            reader.DeserializeVector<typename decltype(cell_to_children)::value_type>(begin, end);
+    }
+
+    template <bool Q = UseShareMemory>
+    typename std::enable_if<Q>::type InitializePointers(char *begin, const char *end)
+    {
+        auto level_offsets_size = *reinterpret_cast<std::uint64_t *>(begin);
+        begin += sizeof(level_offsets_size);
+        level_offsets.reset(begin, level_offsets_size);
+        begin += sizeof(decltype(level_offsets[0])) * level_offsets_size;
+
+        auto partition_size = *reinterpret_cast<std::uint64_t *>(begin);
+        begin += sizeof(partition_size);
+        partition.reset(begin, partition_size);
+        begin += sizeof(decltype(partition[0])) * partition_size;
+
+        auto level_to_children_offset_size = *reinterpret_cast<std::uint64_t *>(begin);
+        begin += sizeof(level_to_children_offset_size);
+        level_to_children_offset.reset(begin, level_to_children_offset_size);
+        begin += sizeof(decltype(level_to_children_offset[0])) * level_to_children_offset_size;
+
+        auto cell_to_children_size = *reinterpret_cast<std::uint64_t *>(begin);
+        begin += sizeof(cell_to_children_size);
+        cell_to_children.reset(begin, cell_to_children_size);
+        begin += sizeof(decltype(cell_to_children[0])) * level_to_children_offset_size;
+
+        BOOST_ASSERT(begin <= end);
+    }
+
+    template <bool Q = UseShareMemory>
+    typename std::enable_if<!Q>::type Read(const boost::filesystem::path &path)
     {
         const auto fingerprint = storage::io::FileReader::VerifyFingerprint;
         storage::io::FileReader reader{path, fingerprint};
@@ -325,11 +381,11 @@ class PackedMultiLevelPartition final : public MultiLevelPartition
         }
     }
 
-    std::vector<PartitionID> partition;
-    std::vector<std::size_t> level_offsets;
+    typename util::ShM<std::size_t, UseShareMemory>::vector level_offsets;
+    typename util::ShM<PartitionID, UseShareMemory>::vector partition;
+    typename util::ShM<std::size_t, UseShareMemory>::vector level_to_children_offset;
+    typename util::ShM<CellID, UseShareMemory>::vector cell_to_children;
     std::vector<PartitionID> level_masks;
-    std::vector<std::size_t> level_to_children_offset;
-    std::vector<CellID> cell_to_children;
     std::array<LevelID, NUM_PARTITION_BITS> bit_to_level;
 };
 }

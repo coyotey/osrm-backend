@@ -14,10 +14,12 @@
 #include "util/guidance/turn_lanes.hpp"
 
 #include "engine/geospatial_query.hpp"
+#include "util/cell_storage.hpp"
 #include "util/exception.hpp"
 #include "util/exception_utils.hpp"
 #include "util/guidance/turn_bearing.hpp"
 #include "util/log.hpp"
+#include "util/multi_level_partition.hpp"
 #include "util/name_table.hpp"
 #include "util/packed_vector.hpp"
 #include "util/range_table.hpp"
@@ -116,6 +118,10 @@ class ContiguousInternalMemoryDataFacade : public BaseDataFacade
     // at an intersection
     std::shared_ptr<util::RangeTable<16, true>> m_bearing_ranges_table;
     util::ShM<DiscreteBearing, true>::vector m_bearing_values_table;
+
+    // MLD data
+    util::PackedMultiLevelPartition<true> mld_partition;
+    util::CellStorage<true> mld_cell_storage;
 
     // allocator that keeps the allocation data
     std::unique_ptr<ContiguousBlockAllocator> allocator;
@@ -426,6 +432,21 @@ class ContiguousInternalMemoryDataFacade : public BaseDataFacade
         m_entry_class_table = std::move(entry_class_table);
     }
 
+    void InitializeMLDDataPointers(storage::DataLayout &data_layout, char *memory_block)
+    {
+        auto mld_partition_ptr =
+            data_layout.GetBlockPtr<char>(memory_block, storage::DataLayout::MLD_CELL_PARTITION);
+        mld_partition.InitializePointers(
+            mld_partition_ptr,
+            mld_partition_ptr + data_layout.num_entries[storage::DataLayout::MLD_CELL_PARTITION]);
+
+        auto mld_cell_storage_ptr =
+            data_layout.GetBlockPtr<char>(memory_block, storage::DataLayout::MLD_CELL_STORAGE);
+        mld_cell_storage.InitializePointers(
+            mld_cell_storage_ptr,
+            mld_cell_storage_ptr + data_layout.num_entries[storage::DataLayout::MLD_CELL_STORAGE]);
+    }
+
     void InitializeInternalPointers(storage::DataLayout &data_layout, char *memory_block)
     {
         InitializeGraphPointer(data_layout, memory_block);
@@ -441,6 +462,7 @@ class ContiguousInternalMemoryDataFacade : public BaseDataFacade
         InitializeProfilePropertiesPointer(data_layout, memory_block);
         InitializeRTreePointers(data_layout, memory_block);
         InitializeIntersectionClassPointers(data_layout, memory_block);
+        InitializeMLDDataPointers(data_layout, memory_block);
     }
 
   public:
@@ -1006,6 +1028,13 @@ class ContiguousInternalMemoryDataFacade : public BaseDataFacade
                 m_lane_description_masks.begin() +
                     m_lane_description_offsets[lane_description_id + 1]);
     }
+
+    const util::PackedMultiLevelPartition<true> &GetMultiLevelPartition() const
+    {
+        return mld_partition;
+    }
+
+    const util::CellStorage<true> &GetCellStorage() const { return mld_cell_storage; }
 };
 }
 }

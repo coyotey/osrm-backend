@@ -15,13 +15,14 @@ namespace customizer
 
 class CellCustomizer
 {
+    using CellStorage = osrm::util::CellStorage<false>;
 
   public:
     CellCustomizer(const osrm::util::MultiLevelPartition &partition) : partition(partition) {}
 
     template <typename GraphT>
     void Customize(const GraphT &graph,
-                   osrm::util::CellStorage &cells,
+                   CellStorage &cells,
                    osrm::util::LevelID level,
                    osrm::util::CellID id)
     {
@@ -61,7 +62,7 @@ class CellCustomizer
         }
     }
 
-    template <typename GraphT> void Customize(const GraphT &graph, osrm::util::CellStorage &cells)
+    template <typename GraphT> void Customize(const GraphT &graph, CellStorage &cells)
     {
         for (std::size_t level = 1; level < partition.GetNumberOfLevels(); ++level)
         {
@@ -85,7 +86,7 @@ class CellCustomizer
 
     template <bool first_level, typename GraphT>
     void RelaxNode(const GraphT &graph,
-                   const osrm::util::CellStorage &cells,
+                   const CellStorage &cells,
                    Heap &heap,
                    osrm::util::LevelID level,
                    osrm::util::CellID id,

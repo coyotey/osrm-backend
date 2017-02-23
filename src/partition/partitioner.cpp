@@ -314,13 +314,13 @@ int Partitioner::Run(const PartitionConfig &config)
         }
 
         TIMER_START(packed_mlp);
-        osrm::util::PackedMultiLevelPartition mlp{partitions, level_to_num_cells};
+        osrm::util::PackedMultiLevelPartition<false> mlp{partitions, level_to_num_cells};
         TIMER_STOP(packed_mlp);
         util::Log() << "PackedMultiLevelPartition constructed in " << TIMER_SEC(packed_mlp)
                     << " seconds";
 
         TIMER_START(cell_storage);
-        osrm::util::CellStorage storage(mlp, *edge_based_graph);
+        osrm::util::CellStorage<false> storage(mlp, *edge_based_graph);
         TIMER_STOP(cell_storage);
         util::Log() << "CellStorage constructed in " << TIMER_SEC(cell_storage) << " seconds";
 
